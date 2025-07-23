@@ -6,10 +6,7 @@ import ssl
 from datetime import datetime
 import json
 import os
-from flask import Flask, request
-
-# Flask setup to respond to UptimeRobot
-app = Flask(__name__)
+import time
 
 SEARCH_URL = "https://ingatlan.com/lista/kiado+lakas+45-m2-felett+wc-kulon+1-emelet-felett+van-legkondi+csak-kepes+tegla-epitesu-lakas+havi-280-ezer-Ft-ig+i-ker+ii-ker+iii-ker+iv-ker+ix-ker+v-ker+vi-ker+vii-ker+viii-ker+x-ker+xi-ker+xiii-ker"
 
@@ -39,7 +36,6 @@ def save_seen_ids(ids):
 def get_listings():
     from selenium import webdriver
     from selenium.webdriver.chrome.options import Options
-    import time
 
     options = Options()
     options.add_argument("--headless")
@@ -86,22 +82,22 @@ def send_email(listings):
     except Exception as e:
         print(f"[ERROR] Failed to send email: {e}")
 
-@app.route("/", methods=["GET"])
-def trigger_scraper():
-    print("[INFO] Triggered by UptimeRobot")
+def main_loop():
+    while True:
+        print("[INFO] Starting scraper cycle...")
+        seen_ids = load_seen_ids()
+        listings = get_listings()
+        new_listings = [l for l in listings if l["id"] not in seen_ids]
 
-    seen_ids = load_seen_ids()
-    listings = get_listings()
-    new_listings = [l for l in listings if l["id"] not in seen_ids]
+        if new_listings:
+            send_email(new_listings)
+            seen_ids.update([l["id"] for l in new_listings])
+            save_seen_ids(seen_ids)
+        else:
+            print("[INFO] No new listings found.")
 
-    if new_listings:
-        send_email(new_listings)
-        seen_ids.update([l["id"] for l in new_listings])
-        save_seen_ids(seen_ids)
-    else:
-        print("[INFO] No new listings found")
-
-    return "OK", 200
+        print("[INFO] Sleeping for 10 minutes...")
+        time.sleep(600)
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+    main_loop()
